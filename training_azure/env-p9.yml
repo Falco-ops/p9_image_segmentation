@@ -1,0 +1,28 @@
+name: proj9
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pip
+  - pandas
+  - scipy
+  - python
+  - numpy
+  - ipykernel
+  - notebook
+  - tensorflow
+  - keras
+  - opencv
+  - matplotlib
+
+  
+  - pip:
+      - azureml-core
+      - azureml-dataset-runtime
+      - azureml-defaults
+      - joblib
+      - pillow
+      - Augmentor
+      
+      
+prefix: D:\Anaconda\envs\proj9
