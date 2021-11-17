@@ -8,30 +8,38 @@ import os
 import numpy as np
 import pandas as pd
 import random
-import joblib
-import cv2
+#import cv2
 
+import tensorflow
+from tensorflow.python.keras.utils import Sequence
 from tensorflow.python.keras.preprocessing import image
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.layers import Input, Conv2D, MaxPooling2D, concatenate, UpSampling2D
 from tensorflow.python.keras.optimizers import Adadelta, Nadam
 from tensorflow.python.keras.models import Model, load_model
-from tensorflow.python.keras.utils import multi_gpu_model, plot_model
-from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+#from tensorflow.python.keras.utils import multi_gpu_model, plot_model
+from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping#, ReduceLROnPlateau
 from tensorflow.python.keras.preprocessing import image
 from tensorflow.python.keras.losses import binary_crossentropy
-from tensorflow.python.keras.utils import Sequence
+
 from tensorflow.python.keras.callbacks import Callback
+
+from sklearn.model_selection import train_test_split
 
 from dilatednet import DilatedNet
 from multiclassunet import Unet
 
 print('lib imported...')
 
+
 #get scripts arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--image-folder', type=str, dest='image_folder')
-parser.add_argument('--mask-folder', type=, dest='mask_folder')
+parser.add_argument('--augmented-data', type=str, dest='augmented_data')
+args = parser.parse_args()
+
+save_folder = args.augmented_data
+
+run = Run.get_context()
 
 #set parameters
 batch_size = 2
@@ -43,8 +51,8 @@ filters_n = 64
 
 #load data
 print('data...')
-mask_path = run.input_datasets['mask']
-image_path = run.input_datasets['image']
+image_path= os.path.join(save_folder, 'image')
+mask_path= os.path.join(save_folder, 'mask')
 
 #divison of labelling
 cats = {'void': [0, 1, 2, 3, 4, 5, 6],
@@ -57,9 +65,9 @@ cats = {'void': [0, 1, 2, 3, 4, 5, 6],
  'vehicle': [26, 27, 28, 29, 30, 31, 32, 33, -1]}
 
 #mounted point to directory
-image_dir = mask_path
-mask_dir = image_path
-mask = 'labelIds'
+image_dir = image_path
+mask_dir = mask_path
+
 
 #extract list of pictures 
 print('making picture list...')
@@ -69,12 +77,32 @@ for root, dirs, files in os.walk(image_dir):
         image_list.append(os.path.join(root, name))
 
 #extract mask with label
-mask_list_l = []
+mask_list = []
 for root, dirs, files in os.walk(mask_dir):
     for name in files:
-        mask_list_l.append(os.path.join(root, name))
+        mask_list.append(os.path.join(root, name))
+        
+print("split..")
 
-mask_list = [m for m in mask_list_l if mask in m]
+def train_test_val_split(X, Y, split=(0.2, 0.1), shuffle=True):
+    """Split dataset into train/val/test subsets by 70:20:10(default).
+    
+    Args:
+      X: List of data.
+      Y: List of labels corresponding to data.
+      split: Tuple of split ratio in `test:val` order.
+      shuffle: Bool of shuffle or not.
+      
+    Returns:
+      Three dataset in `train:test:val` order.
+    """
+    
+    assert len(X) == len(Y), 'The length of X and Y must be consistent.'
+    X_train, X_test_val, Y_train, Y_test_val = train_test_split(X, Y, 
+        test_size=(split[0]+split[1]), shuffle=shuffle)
+    X_test, X_val, Y_test, Y_val = train_test_split(X_test_val, Y_test_val, 
+        test_size=split[1], shuffle=False)
+    return (X_train, Y_train), (X_test, Y_test), (X_val, Y_val) 
 
 print("class gen...")
 
@@ -157,10 +185,13 @@ es = EarlyStopping(mode='max', monitor='acc', patience=6, verbose=1)
 callbacks = [tb, mc, es]
 
 print('making input...')
-train_gen = seg_gen(image_list[:10], mask_list[:10], batch_size)
+train_image, train_mask, val_image, val_mask = train_test_split(image_list, mask_list, test_size=0.15) 
+
+train_gen = seg_gen(train_image[:10], train_mask[:10], batch_size)
+valid_gen = seg_gen(val_image[:10], val_mask[:10], batch_size)
 
 print('fit...')
-unet.fit_generator(train_gen, epochs=5, callbacks=callbacks)
+unet.fit_generator(train_gen, epochs=5, callbacks=callbacks, validation_dat=valid_gen)
 
 print('Saving final weights')
 os.makedirs('outputs', exist_ok=True)

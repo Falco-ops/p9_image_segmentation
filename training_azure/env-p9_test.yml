@@ -5,23 +5,23 @@ channels:
 dependencies:
   - pip
   - pandas
+  - scipy
   - python
   - numpy
-  - ipykernel 
+  - ipykernel
+  - notebook
+  - tensorflow
   - keras
-  - scikit-learn
+  - opencv
   
-    
+
+  
   - pip:
       - azureml-core
       - azureml-dataset-runtime
       - azureml-defaults
       - joblib
       - pillow
-      - augmentor
-      - tensorflow==1.14
-      - opencv-python
-      
       
       
       
