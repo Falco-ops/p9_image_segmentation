@@ -38,6 +38,7 @@ parser.add_argument('--augmented-data', type=str, dest='augmented_data')
 parser.add_argument('--batch-size', type=int, dest='batch_size')
 parser.add_argument('--optimizer', type=str, dest='optimizer')
 parser.add_argument('--loss', type=str, dest='loss')
+parser.add_argument('--epoch', type=int, dest='epoch')
 args = parser.parse_args()
 
 save_folder = args.augmented_data
@@ -47,6 +48,7 @@ run = Run.get_context()
 #set parameters
 batch_size = args.batch_size
 optimizer = args.optimizer
+epoch = args.epoch
 loss = args.loss
 samples = 50000
 steps = samples//batch_size
@@ -198,20 +200,32 @@ es = EarlyStopping(mode='max', monitor='acc', patience=6, verbose=1)
 callbacks = [tb, mc, es]
 
 print('making input...')
-train_image, train_mask, val_image, val_mask = train_test_split(image_list, mask_list, test_size=0.15) 
+(train_image, train_mask), (val_image, val_mask), (test_image, test_mask) = train_test_val_split(image_list, mask_list)
 
-train_gen = seg_gen(train_image[:10], train_mask[:10], batch_size)
-valid_gen = seg_gen(val_image[:10], val_mask[:10], batch_size)
+train_gen = seg_gen(train_image, train_mask, batch_size)
+valid_gen = seg_gen(val_image, val_mask, batch_size)
+test_gen = seg_gen(test_image, test_mask, batch_size)
 
 print('fit...')
 #with multi gpu fit p_unet
-unet_history = unet.fit_generator(train_gen, epochs=5, callbacks=callbacks, validation_data=valid_gen)
+unet_history = unet.fit_generator(train_gen, epochs=epoch, callbacks=callbacks, validation_data=valid_gen)
 
-print('logs..')
-accu = unet_history.history['val_acc']
-dice = unet_history.history['val_dice_coeff']
-run.log_list('accuracy', accu)
-run.log_list('dice_coeff', dice)    
+#evaluate
+unet_eval = unet.evaluate(test_gen)
+
+print('logs training..')
+accu_training = unet_history.history['val_acc']
+dice_training = unet_history.history['val_dice_coeff']
+run.log_list('accuracy training', accu_training)
+run.log_list('dice_coeff training', dice_training)    
+
+print('logs evaluation..')
+loss_eval = unet_eval[0]
+accu_eval = unet_eval[1]
+dice_eval = unet_eval[2]
+run.log_list('loss evaluation', loss_eval)
+run.log_list('accuray evaluation', accu_eval)
+run.log_list('dice_coeff evaluation', dice_eval)
 
 print('Saving final weights')
 os.makedirs('outputs', exist_ok=True)
